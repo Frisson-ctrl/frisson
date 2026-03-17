@@ -170,7 +170,7 @@ export default function FrissonPlayer({
             <img
               src={song.thumbnailUrl}
               alt="현재 재생 중인 곡 썸네일"
-              className="h-full w-full object-cover object-center"
+              className="h-full w-full object-cover object-center scale-150"
             />
           </div>
         ) : (
