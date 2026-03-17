@@ -19,7 +19,7 @@ export default function Home() {
 
   function saveNickname() {
     if (!nickname.trim()) {
-      alert("닉네임을 입력해주세요.");
+      alert("ADA 닉네임을 입력해주세요.");
       return;
     }
 
