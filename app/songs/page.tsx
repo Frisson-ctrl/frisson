@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
   ExternalLink,
@@ -131,10 +131,10 @@ export default function SongsPage() {
     const updatedSongs = songs.map((currentSong) =>
       currentSong.id === song.id
         ? {
-          ...currentSong,
-          votes: updatedVotes,
-          voters: updatedVoters,
-        }
+            ...currentSong,
+            votes: updatedVotes,
+            voters: updatedVoters,
+          }
         : currentSong
     );
 
@@ -151,36 +151,24 @@ export default function SongsPage() {
     }
   }
 
-  function handleNextSong() {
-    if (!selectedSong) return;
-
-    const currentIndex = sortedSongs.findIndex(
-      (song) => song.id === selectedSong.id
-    );
-
-    if (currentIndex === -1) return;
-
-    const nextSong = sortedSongs[currentIndex + 1];
-
-    if (!nextSong) return;
-
-    setSelectedSong(nextSong);
-    markAsHeard(nextSong);
-  }
-
   const nickname =
     typeof window !== "undefined" ? sessionStorage.getItem("nickname") : null;
 
-  const filteredSongs = showLikedOnly
-    ? songs.filter((song) => nickname && (song.voters ?? []).includes(nickname))
-    : songs;
+  const filteredSongs = useMemo(() => {
+    return showLikedOnly
+      ? songs.filter((song) => nickname && (song.voters ?? []).includes(nickname))
+      : songs;
+  }, [songs, showLikedOnly, nickname]);
 
-  const sortedSongs = [...filteredSongs].sort((a, b) => {
+  const sortedSongs = useMemo(() => {
+    const copied = [...filteredSongs];
+
     if (sortType === "popular") {
-      return (b.votes ?? 0) - (a.votes ?? 0);
+      return copied.sort((a, b) => (b.votes ?? 0) - (a.votes ?? 0));
     }
-    return 0;
-  });
+
+    return copied;
+  }, [filteredSongs, sortType]);
 
   const currentSongIndex = selectedSong
     ? sortedSongs.findIndex((song) => song.id === selectedSong.id)
@@ -189,10 +177,36 @@ export default function SongsPage() {
   const hasNextSong =
     currentSongIndex !== -1 && currentSongIndex < sortedSongs.length - 1;
 
+  function handleNextSong() {
+    if (!selectedSong) {
+      setSelectedSong(null);
+      return;
+    }
+
+    const currentIndex = sortedSongs.findIndex(
+      (song) => song.id === selectedSong.id
+    );
+
+    if (currentIndex === -1) {
+      setSelectedSong(null);
+      return;
+    }
+
+    const nextSong = sortedSongs[currentIndex + 1];
+
+    if (!nextSong) {
+      setSelectedSong(null);
+      return;
+    }
+
+    setSelectedSong(nextSong);
+    markAsHeard(nextSong);
+  }
+
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,_#ede9fe,_#f8fafc_35%,_#e2e8f0)] text-neutral-900">
       <div className="mx-auto w-full max-w-7xl px-5 py-8 pb-[140px] md:px-6 md:py-10">
-        <header className="mb-8 rounded-[28px] border border-white/50 bg-white/60 backdrop-blur-xl shadow-[0_20px_60px_rgba(15,23,42,0.08)]">
+        <header className="mb-8 rounded-[28px] border border-white/50 bg-white/60 shadow-[0_20px_60px_rgba(15,23,42,0.08)] backdrop-blur-xl">
           <div className="flex flex-col gap-6 p-6 md:p-8">
             <div className="flex items-start justify-between gap-4">
               <div className="space-y-6">
@@ -207,9 +221,7 @@ export default function SongsPage() {
                   <h1 className="m-0 text-4xl font-semibold tracking-tight md:text-5xl">
                     Songs
                   </h1>
-                  <p className="mt-2 text-sm text-neutral-500">
-                    총 {songs.length}곡
-                  </p>
+                  <p className="mt-2 text-sm text-neutral-500">총 {songs.length}곡</p>
                   <p className="mt-3 max-w-2xl text-sm leading-7 text-neutral-600 md:text-base">
                     {isSubmissionOpen
                       ? "이번 시즌에 등록된 frisson 곡들입니다. 마음에 드는 곡을 재생하고, 전율이 오는 곡에 투표해보세요."
@@ -222,10 +234,11 @@ export default function SongsPage() {
             <div className="flex flex-wrap gap-3">
               <button
                 onClick={() => setSortType("latest")}
-                className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm transition ${sortType === "latest"
+                className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm transition ${
+                  sortType === "latest"
                     ? "bg-neutral-900 text-white"
                     : "border border-neutral-200 bg-white/80 text-neutral-700 hover:bg-white"
-                  }`}
+                }`}
               >
                 <Clock3 size={16} />
                 등록순
@@ -233,10 +246,11 @@ export default function SongsPage() {
 
               <button
                 onClick={() => setSortType("popular")}
-                className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm transition ${sortType === "popular"
+                className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm transition ${
+                  sortType === "popular"
                     ? "bg-neutral-900 text-white"
                     : "border border-neutral-200 bg-white/80 text-neutral-700 hover:bg-white"
-                  }`}
+                }`}
               >
                 <Flame size={16} />
                 인기순
@@ -249,12 +263,14 @@ export default function SongsPage() {
                   type="button"
                   onClick={() => setShowLikedOnly((prev) => !prev)}
                   aria-pressed={showLikedOnly}
-                  className={`relative h-7 w-12 rounded-full transition ${showLikedOnly ? "bg-neutral-900" : "bg-neutral-300"
-                    }`}
+                  className={`relative h-7 w-12 rounded-full transition ${
+                    showLikedOnly ? "bg-neutral-900" : "bg-neutral-300"
+                  }`}
                 >
                   <span
-                    className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow-sm transition ${showLikedOnly ? "left-6" : "left-1"
-                      }`}
+                    className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow-sm transition ${
+                      showLikedOnly ? "left-6" : "left-1"
+                    }`}
                   />
                 </button>
               </label>
@@ -292,7 +308,8 @@ export default function SongsPage() {
                   ? sessionStorage.getItem("nickname")
                   : null;
 
-              const hasVoted = !!nickname && (song.voters ?? []).includes(nickname);
+              const hasVoted =
+                !!nickname && (song.voters ?? []).includes(nickname);
 
               return (
                 <article
@@ -301,10 +318,11 @@ export default function SongsPage() {
                     setSelectedSong(song);
                     markAsHeard(song);
                   }}
-                  className={`group relative cursor-pointer overflow-hidden rounded-[28px] border transition-all duration-300 ${isSelected
+                  className={`group relative cursor-pointer overflow-hidden rounded-[28px] border transition-all duration-300 ${
+                    isSelected
                       ? "border-white/70 ring-2 ring-violet-300 shadow-[0_20px_50px_rgba(109,40,217,0.18)]"
                       : "border-white/50 shadow-[0_18px_40px_rgba(15,23,42,0.08)] hover:-translate-y-1 hover:shadow-[0_22px_48px_rgba(15,23,42,0.12)]"
-                    }`}
+                  }`}
                 >
                   {song.thumbnailUrl ? (
                     <>
@@ -361,10 +379,11 @@ export default function SongsPage() {
                             setSelectedSong(song);
                             markAsHeard(song);
                           }}
-                          className={`inline-flex h-11 w-11 items-center justify-center rounded-2xl border transition ${isSelected
+                          className={`inline-flex h-11 w-11 items-center justify-center rounded-2xl border transition ${
+                            isSelected
                               ? "border-white/30 bg-white/25 text-white"
                               : "border-white/20 bg-white/12 text-white hover:bg-white/20"
-                            }`}
+                          }`}
                           aria-label={isSelected ? "재생 중" : "재생하기"}
                         >
                           <Play size={18} fill="currentColor" />
@@ -387,15 +406,13 @@ export default function SongsPage() {
                           e.stopPropagation();
                           handleVote(song);
                         }}
-                        className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium backdrop-blur-sm transition ${hasVoted
+                        className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium backdrop-blur-sm transition ${
+                          hasVoted
                             ? "bg-white text-neutral-900"
                             : "bg-white/16 text-white hover:bg-white/24"
-                          }`}
+                        }`}
                       >
-                        <Heart
-                          size={16}
-                          className={hasVoted ? "fill-current" : ""}
-                        />
+                        <Heart size={16} className={hasVoted ? "fill-current" : ""} />
                         {song.votes ?? 0}
                       </button>
                     </div>
@@ -409,6 +426,7 @@ export default function SongsPage() {
         {selectedSong && (
           <div className="fixed bottom-5 left-5 right-5 z-[1000] mx-auto max-w-3xl">
             <FrissonPlayer
+              key={selectedSong.id}
               song={selectedSong}
               onClose={() => {
                 setSelectedSong(null);
