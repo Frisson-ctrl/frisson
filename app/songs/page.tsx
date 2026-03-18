@@ -10,6 +10,8 @@ import {
   Clock3,
   Flame,
   Headphones,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import FrissonPlayer from "@/components/FrissonPlayer";
 import { isSubmissionOpen } from "@/config";
@@ -27,15 +29,18 @@ type Song = {
   createdAt?: string;
 };
 
+type SortType = "latest" | "oldest" | "popular";
+
 export default function SongsPage() {
   const [songs, setSongs] = useState<Song[]>([]);
   const [selectedSong, setSelectedSong] = useState<Song | null>(null);
-  const [sortType, setSortType] = useState<"latest" | "popular">(
+  const [sortType, setSortType] = useState<SortType>(
     isSubmissionOpen ? "latest" : "popular"
   );
   const [heardSongs, setHeardSongs] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showLikedOnly, setShowLikedOnly] = useState(false);
+  const [expandedComments, setExpandedComments] = useState<number[]>([]);
 
   useEffect(() => {
     async function fetchSongs() {
@@ -85,6 +90,14 @@ export default function SongsPage() {
     const updatedHeardSongs = [...heardSongs, songKey];
     setHeardSongs(updatedHeardSongs);
     localStorage.setItem("heardSongs", JSON.stringify(updatedHeardSongs));
+  }
+
+  function toggleComment(songId: number) {
+    setExpandedComments((prev) =>
+      prev.includes(songId)
+        ? prev.filter((id) => id !== songId)
+        : [...prev, songId]
+    );
   }
 
   async function handleVote(song: Song) {
@@ -167,7 +180,19 @@ export default function SongsPage() {
       return copied.sort((a, b) => (b.votes ?? 0) - (a.votes ?? 0));
     }
 
-    return copied;
+    if (sortType === "latest") {
+      return copied.sort((a, b) => {
+        const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return bTime - aTime;
+      });
+    }
+
+    return copied.sort((a, b) => {
+      const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return aTime - bTime;
+    });
   }, [filteredSongs, sortType]);
 
   const currentSongIndex = selectedSong
@@ -236,6 +261,18 @@ export default function SongsPage() {
                 onClick={() => setSortType("latest")}
                 className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm transition ${
                   sortType === "latest"
+                    ? "bg-neutral-900 text-white"
+                    : "border border-neutral-200 bg-white/80 text-neutral-700 hover:bg-white"
+                }`}
+              >
+                <Clock3 size={16} />
+                최신순
+              </button>
+
+              <button
+                onClick={() => setSortType("oldest")}
+                className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm transition ${
+                  sortType === "oldest"
                     ? "bg-neutral-900 text-white"
                     : "border border-neutral-200 bg-white/80 text-neutral-700 hover:bg-white"
                 }`}
@@ -311,6 +348,9 @@ export default function SongsPage() {
               const hasVoted =
                 !!nickname && (song.voters ?? []).includes(nickname);
 
+              const isExpanded = expandedComments.includes(song.id);
+              const isLongComment = (song.comment ?? "").length > 70;
+
               return (
                 <article
                   key={`${song.id}-${index}`}
@@ -367,7 +407,38 @@ export default function SongsPage() {
                       </h2>
 
                       {song.comment && (
-                        <p className="italic text-white/90">“{song.comment}”</p>
+                        <div>
+                          <p
+                            className={`italic text-white/90 ${
+                              isExpanded ? "" : "line-clamp-2"
+                            }`}
+                          >
+                            “{song.comment}”
+                          </p>
+
+                          {isLongComment && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleComment(song.id);
+                              }}
+                              className="mt-2 inline-flex items-center gap-1 text-xs text-white/80 transition hover:text-white"
+                            >
+                              {isExpanded ? (
+                                <>
+                                  <ChevronUp size={14} />
+                                  접기
+                                </>
+                              ) : (
+                                <>
+                                  <ChevronDown size={14} />
+                                  더보기
+                                </>
+                              )}
+                            </button>
+                          )}
+                        </div>
                       )}
                     </div>
 
