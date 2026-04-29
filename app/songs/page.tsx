@@ -14,64 +14,39 @@ import {
   ChevronUp,
 } from "lucide-react";
 import FrissonPlayer from "@/components/FrissonPlayer";
-import { isSubmissionOpen } from "@/config";
-import { supabase } from "@/lib/supabase";
-
-type Song = {
-  id: number;
-  nickname: string;
-  youtubeUrl: string;
-  comment: string;
-  thumbnailUrl: string;
-  title: string;
-  votes?: number;
-  voters?: string[];
-  createdAt?: string;
-};
+import { parseSeason1SongsCsv, type Song } from "@/lib/season1Songs";
 
 type SortType = "latest" | "oldest" | "popular";
 
 export default function SongsPage() {
   const [songs, setSongs] = useState<Song[]>([]);
   const [selectedSong, setSelectedSong] = useState<Song | null>(null);
-  const [sortType, setSortType] = useState<SortType>(
-    isSubmissionOpen ? "latest" : "popular"
-  );
+  const [sortType, setSortType] = useState<SortType>("popular");
   const [heardSongs, setHeardSongs] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [showLikedOnly, setShowLikedOnly] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const [expandedComments, setExpandedComments] = useState<number[]>([]);
 
   useEffect(() => {
     async function fetchSongs() {
       setIsLoading(true);
+      setErrorMessage("");
 
-      const { data, error } = await supabase
-        .from("songs")
-        .select("*")
-        .order("created_at", { ascending: true });
+      try {
+        const response = await fetch("/songs-season1.csv");
 
-      if (error) {
+        if (!response.ok) {
+          throw new Error(`CSV fetch failed: ${response.status}`);
+        }
+
+        const csv = await response.text();
+        setSongs(parseSeason1SongsCsv(csv));
+      } catch (error) {
         console.error(error);
-        alert("곡 목록을 불러오는 중 오류가 발생했습니다.");
+        setErrorMessage("곡 목록을 불러오는 중 오류가 발생했습니다.");
+      } finally {
         setIsLoading(false);
-        return;
       }
-
-      const formattedSongs: Song[] = (data ?? []).map((song) => ({
-        id: song.id,
-        nickname: song.nickname,
-        youtubeUrl: song.youtube_url,
-        comment: song.comment,
-        thumbnailUrl: song.thumbnail_url ?? "",
-        title: song.title ?? "",
-        votes: song.votes ?? 0,
-        voters: song.voters ?? [],
-        createdAt: song.created_at,
-      }));
-
-      setSongs(formattedSongs);
-      setIsLoading(false);
     }
 
     fetchSongs();
@@ -100,81 +75,8 @@ export default function SongsPage() {
     );
   }
 
-  async function handleVote(song: Song) {
-    const nickname = sessionStorage.getItem("nickname");
-
-    if (!nickname) {
-      alert("먼저 닉네임을 입력하세요!");
-      return;
-    }
-
-    if (song.nickname === nickname) {
-      alert("자기 곡에는 투표할 수 없습니다.");
-      return;
-    }
-
-    const voters = song.voters ?? [];
-    const hasVoted = voters.includes(nickname);
-
-    let updatedVoters: string[];
-    let updatedVotes: number;
-
-    if (hasVoted) {
-      updatedVoters = voters.filter((voter) => voter !== nickname);
-      updatedVotes = Math.max((song.votes ?? 0) - 1, 0);
-    } else {
-      updatedVoters = [...voters, nickname];
-      updatedVotes = (song.votes ?? 0) + 1;
-    }
-
-    const { error } = await supabase
-      .from("songs")
-      .update({
-        votes: updatedVotes,
-        voters: updatedVoters,
-      })
-      .eq("id", song.id);
-
-    if (error) {
-      console.error(error);
-      alert("투표 중 오류가 발생했습니다.");
-      return;
-    }
-
-    const updatedSongs = songs.map((currentSong) =>
-      currentSong.id === song.id
-        ? {
-            ...currentSong,
-            votes: updatedVotes,
-            voters: updatedVoters,
-          }
-        : currentSong
-    );
-
-    setSongs(updatedSongs);
-
-    if (selectedSong && selectedSong.id === song.id) {
-      const updatedSelectedSong = updatedSongs.find(
-        (updatedSong) => updatedSong.id === song.id
-      );
-
-      if (updatedSelectedSong) {
-        setSelectedSong(updatedSelectedSong);
-      }
-    }
-  }
-
-  const nickname =
-    typeof window !== "undefined" ? sessionStorage.getItem("nickname") : null;
-
-  const filteredSongs = useMemo(() => {
-    return showLikedOnly
-      ? songs.filter((song) => nickname && (song.voters ?? []).includes(nickname))
-      : songs;
-  }, [songs, showLikedOnly, nickname]);
-
   const sortedSongs = useMemo(() => {
-    const copied = [...filteredSongs];
+    const copied = [...songs];
 
     if (sortType === "popular") {
       return copied.sort((a, b) => (b.votes ?? 0) - (a.votes ?? 0));
@@ -193,7 +95,7 @@ export default function SongsPage() {
       const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
       return aTime - bTime;
     });
-  }, [filteredSongs, sortType]);
+  }, [songs, sortType]);
 
   const currentSongIndex = selectedSong
     ? sortedSongs.findIndex((song) => song.id === selectedSong.id)
@@ -248,9 +150,8 @@ export default function SongsPage() {
                   </h1>
                   <p className="mt-2 text-sm text-neutral-500">총 {songs.length}곡</p>
                   <p className="mt-3 max-w-2xl text-sm leading-7 text-neutral-600 md:text-base">
-                    {isSubmissionOpen
-                      ? "이번 시즌에 등록된 frisson 곡들입니다. 마음에 드는 곡을 재생하고, 전율이 오는 곡에 투표해보세요."
-                      : "이번 시즌 투표가 종료되었습니다. 가장 많은 frisson을 받은 곡들을 확인해보세요."}
+                    시즌1은 종료되어 감상만 가능한 아카이브입니다. 가장 많은
+                    frisson을 받은 곡들과 러너들의 코멘트를 둘러보세요.
                   </p>
                 </div>
               </div>
@@ -293,24 +194,9 @@ export default function SongsPage() {
                 인기순
               </button>
 
-              <label className="inline-flex items-center gap-3 rounded-full border border-neutral-200 bg-white/80 px-3 py-2 text-sm text-neutral-700">
-                <span className="select-none">내 Frisson만</span>
-
-                <button
-                  type="button"
-                  onClick={() => setShowLikedOnly((prev) => !prev)}
-                  aria-pressed={showLikedOnly}
-                  className={`relative h-7 w-12 rounded-full transition ${
-                    showLikedOnly ? "bg-neutral-900" : "bg-neutral-300"
-                  }`}
-                >
-                  <span
-                    className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow-sm transition ${
-                      showLikedOnly ? "left-6" : "left-1"
-                    }`}
-                  />
-                </button>
-              </label>
+              <span className="inline-flex items-center rounded-full border border-neutral-200 bg-white/80 px-4 py-2 text-sm text-neutral-600">
+                시즌1은 종료되어 감상만 가능합니다.
+              </span>
             </div>
           </div>
         </header>
@@ -322,11 +208,7 @@ export default function SongsPage() {
         )}
 
         {!isLoading && sortedSongs.length === 0 && (
-          <p>
-            {showLikedOnly
-              ? "아직 Frisson한 곡이 없습니다."
-              : "아직 등록된 곡이 없습니다."}
-          </p>
+          <p>{errorMessage || "아직 등록된 곡이 없습니다."}</p>
         )}
 
         {!isLoading && songs.length > 0 && (
@@ -339,14 +221,6 @@ export default function SongsPage() {
               const isHeard = heardSongs.includes(
                 `${song.nickname}-${song.youtubeUrl}`
               );
-
-              const nickname =
-                typeof window !== "undefined"
-                  ? sessionStorage.getItem("nickname")
-                  : null;
-
-              const hasVoted =
-                !!nickname && (song.voters ?? []).includes(nickname);
 
               const isExpanded = expandedComments.includes(song.id);
               const isLongComment = (song.comment ?? "").length > 70;
@@ -472,20 +346,10 @@ export default function SongsPage() {
                         </a>
                       </div>
 
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleVote(song);
-                        }}
-                        className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium backdrop-blur-sm transition ${
-                          hasVoted
-                            ? "bg-white text-neutral-900"
-                            : "bg-white/16 text-white hover:bg-white/24"
-                        }`}
-                      >
-                        <Heart size={16} className={hasVoted ? "fill-current" : ""} />
+                      <div className="inline-flex items-center gap-2 rounded-full bg-white/16 px-4 py-2 text-sm font-medium text-white backdrop-blur-sm">
+                        <Heart size={16} />
                         {song.votes ?? 0}
-                      </button>
+                      </div>
                     </div>
                   </div>
                 </article>
